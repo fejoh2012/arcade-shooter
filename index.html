@@ -451,12 +451,14 @@ function startWave(n){
 }
 
 // ─── CARDS ───────────────────────────────────────────────────────────────────
+let selectedCard  = -1;   // card the player has clicked to select (not yet confirmed)
+let hoveredConfirm = false; // whether mouse is over the confirm button
 function showCards(){
   const owned=new Set(player.abilities);
   // Stackable abilities always appear; one-time abilities disappear once owned
   const pool=ALL_ABILITIES.filter(a=>STACKABLE.has(a.id)||!owned.has(a.id));
   cardChoices=pool.sort(()=>Math.random()-.5).slice(0,3);
-  hoveredCard=-1;
+  hoveredCard=-1; selectedCard=-1; hoveredConfirm=false;
 }
 function pickCard(i){
   const ab=cardChoices[i]; if(!ab) return;
@@ -896,14 +898,29 @@ function drawCardSelect(){
   ctx.fillStyle=`hsl(${hue},100%,68%)`; ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=22;
   ctx.font='bold 44px monospace'; ctx.textAlign='center';
   ctx.fillText(`WAVE ${wave} CLEARED!`,W/2,148); ctx.shadowBlur=0;
-  ctx.fillStyle='#999'; ctx.font='20px monospace'; ctx.fillText('Choose your upgrade',W/2,192);
+  ctx.fillStyle='#999'; ctx.font='20px monospace';
+  ctx.fillText(selectedCard>=0?'Click CONFIRM to take it — or pick a different card':'Click a card to select it',W/2,192);
   const cW=228,cH=295,gap=38,sx=(W-(cW*3+gap*2))/2,cy=216;
   cardChoices.forEach((ab,i)=>{
-    const cx=sx+i*(cW+gap), hov=hoveredCard===i;
+    const cx=sx+i*(cW+gap);
+    const sel=selectedCard===i, hov=hoveredCard===i;
     ctx.save();
-    if(hov){ ctx.shadowColor=ab.color; ctx.shadowBlur=28; }
-    ctx.fillStyle=hov?'#0d0d26':'#090919'; ctx.strokeStyle=ab.color; ctx.lineWidth=hov?3:1.5;
+    if(sel){
+      ctx.shadowColor=ab.color; ctx.shadowBlur=42;
+      ctx.fillStyle='#12122e'; ctx.strokeStyle=ab.color; ctx.lineWidth=3;
+    } else if(hov){
+      ctx.shadowColor=ab.color; ctx.shadowBlur=22;
+      ctx.fillStyle='#0d0d26'; ctx.strokeStyle=ab.color; ctx.lineWidth=2;
+    } else {
+      ctx.fillStyle='#090919'; ctx.strokeStyle=ab.color+'88'; ctx.lineWidth=1.5;
+    }
     roundRect(ctx,cx,cy,cW,cH,14); ctx.fill(); ctx.stroke(); ctx.restore();
+    // Checkmark tick for selected card
+    if(sel){
+      ctx.fillStyle=ab.color; ctx.shadowColor=ab.color; ctx.shadowBlur=14;
+      ctx.font='bold 20px monospace'; ctx.textAlign='right';
+      ctx.fillText('✓',cx+cW-12,cy+26); ctx.shadowBlur=0;
+    }
     ctx.font='52px sans-serif'; ctx.textAlign='center'; ctx.fillText(ab.icon,cx+cW/2,cy+78);
     ctx.fillStyle=ab.color; ctx.shadowColor=ab.color; ctx.shadowBlur=9;
     ctx.font='bold 16px monospace'; ctx.fillText(ab.name,cx+cW/2,cy+114); ctx.shadowBlur=0;
@@ -916,6 +933,19 @@ function drawCardSelect(){
       ctx.shadowBlur=0;
     }
   });
+  // Confirm button — only shown once a card is selected
+  if(selectedCard>=0){
+    const ab=cardChoices[selectedCard];
+    const bx=W/2-110, by=530, bw=220, bh=54;
+    ctx.save();
+    if(hoveredConfirm){ ctx.shadowColor='#00ff88'; ctx.shadowBlur=28; }
+    ctx.fillStyle=hoveredConfirm?'#003322':'#001a11';
+    ctx.strokeStyle='#00ff88'; ctx.lineWidth=hoveredConfirm?3:2;
+    roundRect(ctx,bx,by,bw,bh,12); ctx.fill(); ctx.stroke(); ctx.restore();
+    ctx.fillStyle='#00ff88'; ctx.shadowColor='#00ff88'; ctx.shadowBlur=hoveredConfirm?14:6;
+    ctx.font='bold 22px monospace'; ctx.textAlign='center';
+    ctx.fillText('✓  CONFIRM',W/2,by+bh/2+8); ctx.shadowBlur=0;
+  }
 }
 
 function drawGameOver(){
@@ -984,12 +1014,19 @@ canvas.addEventListener('mousemove',e=>{
     const cW=228,gap=38,sx=(W-(cW*3+gap*2))/2,cy=216; hoveredCard=-1;
     cardChoices.forEach((_,i)=>{ const cx=sx+i*(cW+gap);
       if(mouse.x>=cx&&mouse.x<=cx+cW&&mouse.y>=cy&&mouse.y<=cy+295) hoveredCard=i; });
+    // Confirm button: centred below cards, 220×54
+    const bx=W/2-110, by=530;
+    hoveredConfirm = selectedCard>=0 && mouse.x>=bx&&mouse.x<=bx+220&&mouse.y>=by&&mouse.y<=by+54;
   }
 });
 canvas.addEventListener('click',()=>{
   if(!audioCtx) try{ audioCtx=new(window.AudioContext||window.webkitAudioContext)(); }catch(_){}
   if(gamePhase==='start'){   player=createPlayer(); startWave(1); return; }
-  if(gamePhase==='card_select'&&hoveredCard>=0){ pickCard(hoveredCard); return; }
+  if(gamePhase==='card_select'){
+    if(hoveredConfirm && selectedCard>=0){ pickCard(selectedCard); return; }
+    if(hoveredCard>=0){ selectedCard=hoveredCard; return; }
+    return;
+  }
   if(gamePhase==='game_over'){ resetGame(); return; }
 });
 
